@@ -1,1 +1,192 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CloudGoddess Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:Poppins, system-ui; margin:0; background:linear-gradient(135deg,#f7e9ff,#e6f7ff); color:#1e1e2f}
+    header{padding:16px 18px; background:#fff; box-shadow:0 6px 16px rgba(0,0,0,.08); position:sticky; top:0; z-index:2}
+    header h1{margin:0; font-size:20px}
+    .wrap{max-width:1100px; margin:0 auto; padding:16px}
+    .tabs{display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 16px}
+    .tab{padding:10px 14px; border-radius:999px; border:1px solid #ccc; cursor:pointer; background:#fff}
+    .tab.active{background:linear-gradient(90deg,#ff9a9e,#fad0c4); color:#fff; border-color:transparent}
+    .pane{display:none}
+    .pane.active{display:block; background:#fff; border-radius:12px; padding:16px; box-shadow:0 8px 20px rgba(0,0,0,.08)}
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+    .col{flex:1 1 320px}
+    #canvas{width:100%; height:380px; border:2px dashed #a86cf0; border-radius:12px; position:relative; background:#fafafe}
+    .node{position:absolute; padding:10px 12px; border-radius:10px; background:#e8ddff; border:1px solid #a86cf0; cursor:move; user-select:none}
+    .toolbar{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap}
+    .btn{padding:8px 12px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,#a86cf0,#62d0ff); color:#fff; border:none}
+    input,select,textarea{width:100%; padding:10px; border:1px solid #ddd; border-radius:8px}
+    .tag{font-size:28px; font-weight:800}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; white-space:pre-wrap; background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; overflow:auto; max-height:280px}
+  </style>
+</head>
+<body>
+  <header><h1>CloudGoddess — Live Feature Demos</h1></header>
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab active" data-pane="builder">Visual Builder</button>
+      <button class="tab" data-pane="ai">AI Solution Generator</button>
+      <button class="tab" data-pane="cost">Cost & ROI</button>
+      <button class="tab" data-pane="export">Export / Widget</button>
+    </div>
+
+    <!-- Visual Builder Pane -->
+    <div class="pane active" id="builder">
+      <div class="toolbar">
+        <button class="btn" data-add="EC2">+ EC2</button>
+        <button class="btn" data-add="S3">+ S3</button>
+        <button class="btn" data-add="RDS">+ RDS</button>
+        <button class="btn" data-add="VPC">+ VPC</button>
+        <button class="btn" data-add="LoadBalancer">+ LoadBalancer</button>
+        <button class="btn" id="clear">Clear</button>
+      </div>
+      <div id="canvas"></div>
+    </div>
+
+    <!-- AI Solution Generator Pane -->
+    <div class="pane" id="ai">
+      <div class="row">
+        <div class="col">
+          <h3>Prompt</h3>
+          <textarea id="prompt" rows="7" placeholder="e.g., Design a highly-available 3-tier web app on AWS with CI/CD and cost under $2,000/mo"></textarea>
+          <button class="btn primary" id="gen">Generate Architecture</button>
+        </div>
+        <div class="col">
+          <h3>Output</h3>
+          <div id="out" class="mono">// Your AI plan will appear here…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost & ROI Pane -->
+    <div class="pane" id="cost">
+      <div class="row">
+        <div class="col">
+          <label>Monthly EC2 Instances</label>
+          <input type="number" id="ec2" value="4" min="0"/>
+          <label>Monthly S3 Storage (GB)</label>
+          <input type="number" id="s3" value="500" min="0"/>
+          <label>Monthly Data Transfer (GB)</label>
+          <input type="number" id="xfer" value="200" min="0"/>
+          <label>Estimated Monthly Revenue Impact ($)</label>
+          <input type="number" id="rev" value="8000" min="0"/>
+          <button class="btn primary" id="calc">Calculate</button>
+        </div>
+        <div class="col">
+          <div class="tag" id="tag">$0 / mo</div>
+          <div class="mono" id="breakdown"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export / Widget Pane -->
+    <div class="pane" id="export">
+      <p>Export your architecture JSON to embed in the downloadable widget.</p>
+      <button class="btn" id="exportJson">Export JSON</button>
+      <div class="mono" id="jsonView">{}</div>
+      <p style="margin-top:8px">
+        <a class="btn primary" href="../widget/CloudGoddess-Widget.zip" download>Download Widget</a>
+      </p>
+    </div>
+  </div>
+
+<script>
+const $ = (sel)=>document.querySelector(sel);
+const $$ = (sel)=>[...document.querySelectorAll(sel)];
+// Tabs
+$$('.tab').forEach(t=>t.onclick=()=>{
+  $$('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const id = t.dataset.pane;
+  $$('.pane').forEach(p=>p.classList.remove('active'))
+  document.getElementById(id).classList.add('active');
+});
+
+// Builder
+const canvas = document.getElementById('canvas');
+let nodes = [];
+function addNode(label){
+  const el = document.createElement('div');
+  el.className='node';
+  el.textContent=label;
+  el.style.left = Math.round(Math.random()* (canvas.clientWidth-120))+'px';
+  el.style.top = Math.round(Math.random()* (canvas.clientHeight-60))+'px';
+  canvas.appendChild(el);
+  nodes.push({label,left:parseInt(el.style.left),top:parseInt(el.style.top)});
+  drag(el);
+}
+function drag(el){
+  let startX=0,startY=0,ox=0,oy=0;
+  el.onmousedown = (e)=>{
+    startX=e.clientX; startY=e.clientY;
+    ox=parseInt(el.style.left); oy=parseInt(el.style.top);
+    document.onmousemove = (ev)=>{
+      el.style.left = (ox + (ev.clientX-startX))+'px';
+      el.style.top  = (oy + (ev.clientY-startY))+'px';
+    };
+    document.onmouseup = ()=>{document.onmousemove=null;document.onmouseup=null;};
+  };
+}
+$$('[data-add]').forEach(b=>b.onclick=()=>addNode(b.dataset.add));
+document.getElementById('clear').onclick = ()=>{canvas.innerHTML=''; nodes=[];}
+
+// AI Generator (mock)
+document.getElementById('gen').onclick = ()=>{
+  const p = document.getElementById('prompt').value.trim()||'Highly-available web app on AWS';
+  const plan = `Architecture Plan for: ${p}
+
+- VPC with 2 AZs, public/private subnets
+- ALB -> Auto Scaling Group of EC2 in private subnets
+- RDS Multi-AZ (PostgreSQL)
+- S3 for static assets + CloudFront CDN
+- CI/CD: GitHub Actions -> CodeDeploy
+- Observability: CloudWatch + OpenTelemetry
+- Security: WAF, SGs, IAM least privilege, KMS
+Estimated cost: $1,450–$1,900 / mo
+`;
+  document.getElementById('out').textContent = plan;
+};
+
+// Cost & ROI (very rough mock)
+document.getElementById('calc').onclick = ()=>{
+  const ec2 = +document.getElementById('ec2').value;
+  const s3 = +document.getElementById('s3').value;
+  const xfer = +document.getElementById('xfer').value;
+  const rev = +document.getElementById('rev').value;
+
+  const ec2Cost = ec2*75; // mock per-instance monthly
+  const s3Cost = s3*0.023;
+  const xferCost = xfer*0.09;
+  const total = ec2Cost + s3Cost + xferCost;
+  const roi = rev ? ((rev-total)/total*100) : 0;
+
+  document.getElementById('tag').textContent = `$${total.toFixed(2)} / mo • ROI ${roi.toFixed(1)}%`;
+  document.getElementById('breakdown').textContent = [
+    `EC2: $${ec2Cost.toFixed(2)}`,
+    `S3:  $${s3Cost.toFixed(2)}`,
+    `Xfer:$${xferCost.toFixed(2)}`,
+    `Total: $${total.toFixed(2)}`,
+  ].join('\n');
+};
+
+// Export JSON
+document.getElementById('exportJson').onclick = ()=>{
+  const data = JSON.stringify(nodes,null,2);
+  document.getElementById('jsonView').textContent = data || '{}';
+  const blob = new Blob([data], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cloudgoddess-architecture.json';
+  a.click();
+};
+</script>
+</body>
+</html>
